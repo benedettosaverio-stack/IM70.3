@@ -222,7 +222,7 @@ const S = {
   ], note:"Fais un test FTP en début de phase pour caler tes zones précisément."},
   bikeInterval:{type:"bike", icon:"bike", title:"Home trainer — intervalles", exos:[
     "15min échauffement progressif","6x4min @ 85-90% FTP / 3min récup Z1","15min retour au calme"
-  ], note:"Séance clé de la semaine côté vélo — le reste du volume est en Z2 facile."},
+  ], note:"Séance clé de la semaine côté vélo — regroupée avec la sortie du lendemain pour ne monter le home trainer qu'une fois."},
   bikeLong:{type:"bike", icon:"bike", title:"Vélo — sortie longue", exos:[
     "Sortie outdoor si possible, sinon home trainer","Durée progressive en Z2, cadence stable 85-90rpm",
     "Ravitaillement toutes les 45min pour habituer le système digestif"
@@ -242,10 +242,10 @@ const S = {
 
 const PHASE0_WEEK = [MUSCU_JEUDI, S.runCadence, REST, MUSCU_FLEX, REST, REST, S.runTaper];
 const PHASE1_WEEK = [null, S.runCadence, S.swimTech, MUSCU_JEUDI, REST, S.bikeBase, S.runLong];
-const PHASE2_WEEK = [null, S.swimEndur, S.bikeInterval, MUSCU_JEUDI, REST, S.runMaint, S.bikeLong];
-const PHASE3_WEEK = [null, S.swimEndur, S.bikeInterval, MUSCU_JEUDI, MUSCU_FLEX, S.brick, null];
-const PHASE4_WEEK = [null, S.swimEndur, S.bikeInterval, MUSCU_JEUDI, REST, S.brick, null];
-const PHASE5_WEEK = [MUSCU_ENTRETIEN, S.swimShort, S.bikeShort, MUSCU_FLEX, REST, S.brick, REST];
+const PHASE2_WEEK = [null, S.swimEndur, S.runMaint, MUSCU_JEUDI, REST, S.bikeInterval, S.bikeLong];
+const PHASE3_WEEK = [null, S.swimEndur, MUSCU_FLEX, MUSCU_JEUDI, REST, S.brick, null];
+const PHASE4_WEEK = [null, S.swimEndur, REST, MUSCU_JEUDI, S.bikeInterval, S.brick, null];
+const PHASE5_WEEK = [MUSCU_ENTRETIEN, S.swimShort, MUSCU_FLEX, REST, S.bikeShort, S.brick, REST];
 
 const PHASES = [
   {key:'phase0', tag:'Phase 0', title:'Finir le Semi de Mons', start:'2026-08-25', end:'2026-10-04',
@@ -253,13 +253,13 @@ const PHASES = [
   {key:'phase1', tag:'Phase 1', title:'Reconstruction & natation', start:'2026-10-05', end:'2027-03-14',
    focus:"Correction de la cadence de course, démarrage technique natation, reprise vélo en douceur. Les dernières semaines s'orientent vers le Mezzo Maratona d'Italia."},
   {key:'phase2', tag:'Phase 2', title:'Consolidation triathlon', start:'2027-03-15', end:'2027-09-30',
-   focus:"La natation passe en volume, le vélo monte progressivement, la course se maintient sans ajout de charge."},
+   focus:"La natation passe en volume, le vélo monte progressivement, la course se maintient sans ajout de charge. Vélo regroupé samedi-dimanche pour ne monter le home trainer qu'une fois par semaine."},
   {key:'phase3', tag:'Phase 3', title:'Premiers bricks', start:'2027-10-01', end:'2027-12-31',
-   focus:"Introduction des enchaînements vélo-course. Le dimanche alterne vélo long et course longue."},
+   focus:"Introduction des enchaînements vélo-course. Vélo regroupé sur le week-end (brick samedi + sortie dimanche) — un seul montage du home trainer par semaine."},
   {key:'phase4', tag:'Phase 4', title:'Bloc spécifique', start:'2028-01-01', end:'2028-03-31',
-   focus:"Volume combiné le plus élevé du plan. Muscu condensée mais jamais suspendue."},
+   focus:"Volume combiné le plus élevé du plan. Muscu condensée mais jamais suspendue. Vélo regroupé vendredi-samedi-dimanche : un seul montage du home trainer pour tout le bloc."},
   {key:'phase5', tag:'Phase 5', title:'Affûtage & fenêtre de course', start:'2028-04-01', end:'2028-09-30',
-   focus:"Réduction progressive du volume. Muscu en entretien pur, charges maintenues. Fenêtre de course Ironman 70.3 active."}
+   focus:"Réduction progressive du volume. Muscu en entretien pur, charges maintenues. Vélo regroupé vendredi-samedi. Fenêtre de course Ironman 70.3 active."}
 ];
 
 const SPECIAL_EVENTS = [
@@ -283,6 +283,19 @@ function fmtLong(d){ return d.toLocaleDateString('fr-FR',{weekday:'long', day:'n
 function fmtShort(d){ return d.toLocaleDateString('fr-FR',{day:'2-digit', month:'2-digit', year:'numeric'}); }
 function findPhase(iso){ return PHASES.find(p=> iso>=p.start && iso<=p.end); }
 
+function isWinterMonth(date){ const m = date.getMonth()+1; return m===11||m===12||m===1||m===2||m===3; }
+function winterizeEntry(entry, date){
+  if(entry.type!=='bike' && entry.type!=='brick') return entry;
+  if(!isWinterMonth(date)) return entry;
+  const exos = (entry.exos||[]).map(x=>x
+    .replace('Sortie outdoor si possible, sinon home trainer', 'Home trainer uniquement — saison hivernale, pas de sortie extérieure')
+    .replace('Vélo 60-90min Z2 (durée croissante selon la phase)', 'Vélo 60-90min Z2 sur home trainer (durée croissante selon la phase)'));
+  const e = {...entry, exos};
+  if(entry.note && entry.note.indexOf('Extérieur dès que possible')===0){
+    e.note = "Home trainer imposé tant qu'on est en hiver — dès le retour des beaux jours, ressors dehors pour retravailler l'équilibre et la gestion du parcours.";
+  }
+  return e;
+}
 function getEntry(date){
   const iso = isoStr(date);
   const special = SPECIAL_EVENTS.find(e=>e.date===iso);
@@ -304,6 +317,7 @@ function getEntry(date){
     const table = {phase0:PHASE0_WEEK, phase1:PHASE1_WEEK, phase2:PHASE2_WEEK, phase3:PHASE3_WEEK, phase4:PHASE4_WEEK, phase5:PHASE5_WEEK}[phase.key];
     entry = {...table[wIdx]};
   }
+  entry = winterizeEntry(entry, date);
   entry.phaseTag = phase.tag + ' — ' + phase.title;
   entry._phaseKey = phase.key;
   return entry;
