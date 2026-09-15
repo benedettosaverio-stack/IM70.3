@@ -113,6 +113,15 @@
   .milestone-count .u{font-size:9px; color:var(--grey); display:block; font-weight:400;}
 
   .section-title{font-size:20px; font-weight:700; margin-bottom:14px;}
+  .stat-bar-row{display:flex; align-items:center; gap:10px; margin-bottom:12px;}
+  .stat-bar-label{width:62px; font-size:12px; color:var(--grey); flex-shrink:0;}
+  .stat-bar-track{flex:1; height:8px; background:var(--panel-2); border-radius:4px; overflow:hidden;}
+  .stat-bar-fill{height:100%; border-radius:4px; transition:width 0.3s;}
+  .stat-bar-count{width:20px; text-align:right; font-size:12px; color:var(--white); flex-shrink:0;}
+  .stat-table{width:100%; border-collapse:collapse; font-size:11px;}
+  .stat-table th{color:var(--grey); font-weight:600; text-align:center; padding:6px 4px; border-bottom:1px solid var(--line); text-transform:uppercase; letter-spacing:0.03em;}
+  .stat-table td{text-align:center; padding:8px 4px; border-bottom:1px solid var(--line); color:var(--white);}
+  .stat-table td:first-child{text-align:left; color:var(--grey);}
   .flag{border-left:3px solid var(--amber); padding-left:12px; font-size:12.5px; color:#e8d9b8; line-height:1.6; margin-top:6px; margin-bottom:16px;}
 
   .subnav{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
@@ -343,7 +352,7 @@ function renderHeader(){
 }
 
 function renderNav(){
-  const tabs = [['today',"Aujourd'hui"],['week','Semaine'],['phase','Phase'],['milestones','Jalons'],['infos','Infos']];
+  const tabs = [['today',"Aujourd'hui"],['week','Semaine'],['phase','Phase'],['stats','Stats'],['milestones','Jalons'],['infos','Infos']];
   document.getElementById('nav').innerHTML = tabs.map(([k,l])=>'<button class="nav-btn '+(activeTab===k?'active':'')+'" onclick="setTab(\''+k+'\')">'+l+'</button>').join('');
 }
 function setTab(t){ activeTab=t; renderNav(); renderContent(); }
@@ -459,11 +468,60 @@ function renderInfos(){
   return '<div class="section-title">Infos</div><div class="subnav">'+pills+'</div>'+body;
 }
 
+function tally(startDate, endDate){
+  const counts = {force:0,swim:0,bike:0,run:0,brick:0,rest:0,race:0};
+  let d = new Date(startDate);
+  while(d <= endDate){
+    const e = getEntry(d);
+    if(counts[e.type]!==undefined) counts[e.type]++;
+    d = addDays(d,1);
+  }
+  return counts;
+}
+
+function renderStats(){
+  const today = todayOnly();
+  const journeyStart = parseDate(PHASES[0].start);
+  const journeyEnd = parseDate(PHASES[PHASES.length-1].end);
+  const totalDays = diffDays(journeyEnd, journeyStart);
+  const elapsed = Math.min(Math.max(diffDays(today, journeyStart),0), totalDays);
+  const pct = totalDays>0 ? elapsed/totalDays : 0;
+  const daysLeft = Math.max(diffDays(journeyEnd, today),0);
+  const r = 30, circ = 2*Math.PI*r;
+
+  const remaining = tally(today, journeyEnd);
+  const maxCount = Math.max(remaining.force, remaining.swim, remaining.bike, remaining.run, remaining.brick, 1);
+  const barRow = (label,count,color)=>'<div class="stat-bar-row"><div class="stat-bar-label">'+label+'</div><div class="stat-bar-track"><div class="stat-bar-fill" style="width:'+(count/maxCount*100)+'%; background:'+color+'"></div></div><div class="stat-bar-count mono">'+count+'</div></div>';
+  const bars = barRow('Muscu',remaining.force,'var(--red)')
+    + barRow('Natation',remaining.swim,'#2ea3c9')
+    + barRow('Vélo',remaining.bike,'var(--amber)')
+    + barRow('Course',remaining.run,'#4fbf6b')
+    + barRow('Brick',remaining.brick,'#b478e0');
+
+  const phaseRows = PHASES.map(p=>{
+    const c = tally(parseDate(p.start), parseDate(p.end));
+    return '<tr><td>'+p.tag+'</td><td>'+c.force+'</td><td>'+c.swim+'</td><td>'+c.bike+'</td><td>'+c.run+'</td><td>'+c.brick+'</td></tr>';
+  }).join('');
+
+  return '<div class="section-title">Stats</div>'+
+    '<div class="phase-progress"><svg class="ring" viewBox="0 0 70 70">'+
+    '<circle class="ring-track" cx="35" cy="35" r="'+r+'"/>'+
+    '<circle class="ring-fill" cx="35" cy="35" r="'+r+'" stroke-dasharray="'+circ+'" stroke-dashoffset="'+(circ*(1-pct))+'"/>'+
+    '<text x="35" y="39" class="ring-label mono">'+Math.round(pct*100)+'%</text></svg>'+
+    '<div class="phase-desc">Progression globale de la préparation — '+elapsed+' jours écoulés sur '+totalDays+', encore '+daysLeft+' jours jusqu\'à la fin de la fenêtre de course.</div></div>'+
+    '<div class="info-card"><h3 style="margin-bottom:14px;">Séances restantes par discipline</h3>'+bars+
+    '<div class="session-note" style="margin-top:14px; border-top:none; padding-top:0;">Total du '+fmtShort(today)+' au '+fmtShort(journeyEnd)+'.</div></div>'+
+    '<div class="info-card"><h3 style="margin-bottom:12px;">Répartition par phase</h3>'+
+    '<table class="stat-table mono"><thead><tr><th></th><th>Muscu</th><th>Nat.</th><th>Vélo</th><th>Course</th><th>Brick</th></tr></thead>'+
+    '<tbody>'+phaseRows+'</tbody></table></div>';
+}
+
 function renderContent(){
   const el = document.getElementById('content');
   if(activeTab==='today') el.innerHTML = renderToday();
   else if(activeTab==='week') el.innerHTML = renderWeek();
   else if(activeTab==='phase') el.innerHTML = renderPhase();
+  else if(activeTab==='stats') el.innerHTML = renderStats();
   else if(activeTab==='milestones') el.innerHTML = renderMilestones();
   else if(activeTab==='infos') el.innerHTML = renderInfos();
 }
